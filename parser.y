@@ -118,7 +118,9 @@ int main() {
 
     yyparse();
     fclose(pyout);
-    return 0;
+ printf("\n🟢 Running Generated Python Code:\n");
 system("python3 output.py");
+    return 0;
+
 
 }
