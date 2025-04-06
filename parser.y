@@ -15,7 +15,11 @@ typedef struct {
 Symbol symbolTable[100];
 int symbolCount = 0;
 
-// Helper Functions
+char currentType[10];
+char currentID[100];
+
+FILE *pyout; // Python output file
+
 int isDeclared(char *name) {
     for (int i = 0; i < symbolCount; i++) {
         if (strcmp(symbolTable[i].name, name) == 0)
@@ -39,11 +43,13 @@ void addSymbol(char *name, char *type) {
         strcpy(symbolTable[symbolCount].name, name);
         strcpy(symbolTable[symbolCount].type, type);
         symbolCount++;
+
+        fprintf(pyout, "%s = None\n", name);  // Write to Python file
         printf("✔ Declared: %s (%s)\n", name, type);
     }
 }
 
-void checkAssignment(char *name, char *expectedType) {
+void checkAssignment(char *name, char *expectedType, char *value) {
     if (!isDeclared(name)) {
         printf("❌ Error: Variable '%s' not declared\n", name);
     } else {
@@ -51,13 +57,11 @@ void checkAssignment(char *name, char *expectedType) {
         if (strcmp(actualType, expectedType) != 0) {
             printf("❌ Error: Type mismatch in assignment to '%s'\n", name);
         } else {
-            printf("✔ Assignment OK: %s = value\n", name);
+            fprintf(pyout, "%s = %s\n", name, value); // Write assignment to Python
+            printf("✔ Assignment OK: %s = %s\n", name, value);
         }
     }
 }
-
-char currentType[10];  // Temporarily store type during declaration
-char currentID[100];   // Temporarily store ID
 %}
 
 %union {
@@ -81,16 +85,16 @@ stmt:
     ;
 
 declaration:
-    type ID   {
-                strcpy(currentID, $2);
-                addSymbol(currentID, $1);
-             }
+    type ID {
+        strcpy(currentID, $2);
+        addSymbol(currentID, $1);
+    }
     ;
 
 assignment:
     ID ASSIGN NUM {
-                    checkAssignment($1, "int");  // default assumes NUM is int
-                 }
+        checkAssignment($1, "int", $3);
+    }
     ;
 
 type:
@@ -105,3 +109,14 @@ void yyerror(const char *s) {
     fprintf(stderr, "❌ Syntax Error: %s\n", s);
 }
 
+int main() {
+    pyout = fopen("output.py", "w");
+    if (!pyout) {
+        perror("Failed to open output file");
+        return 1;
+    }
+
+    yyparse();
+    fclose(pyout);
+    return 0;
+}
