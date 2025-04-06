@@ -1,81 +1,130 @@
 %{
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "y.tab.h" // Token definitions from Bison
 
-int keywords = 0, identifiers = 0, numbers = 0, operators = 0, others = 0;
+void yyerror(const char *s);
+int yylex();
+int yylineno;
 
-char *keyword_list[] = {
-  "int", "float", "char", "if", "else", "for", "while", "return", "include", "using", "namespace", "std", "cout", "cin", "void", NULL
-};
-
-int is_keyword(char *str) {
-    for (int i = 0; keyword_list[i] != NULL; i++) {
-        if (strcmp(str, keyword_list[i]) == 0)
-            return 1;
-    }
-    return 0;
+char* str_concat(const char* a, const char* b) {
+    char *result = malloc(strlen(a) + strlen(b) + 2);
+    strcpy(result, a);
+    strcat(result, " ");
+    strcat(result, b);
+    return result;
 }
 %}
 
-%option noyywrap
-
-DIGIT      [0-9]+
-ID         [a-zA-Z_][a-zA-Z0-9_]*
-WS         [ \t\n]+
-COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
-
-%%
-
-{WS}            { /* skip whitespace */ }
-{COMMENT}       { /* skip comment */ }
-
-"#".*           { printf("Preprocessor Directive: %s\n", yytext); others++; return PREPROCESSOR; }
-\".*\"          { yylval.str = strdup(yytext); printf("String Literal: %s\n", yytext); others++; return STRING; }
-
-"cin"           { printf("Keyword: %s\n", yytext); keywords++; return CIN; }
-"cout"          { printf("Keyword: %s\n", yytext); keywords++; return COUT; }
-">>"            { printf("Operator: %s\n", yytext); operators++; return CIN_OP; }
-"<<"            { printf("Operator: %s\n", yytext); operators++; return COUT_OP; }
-
-"=="            { printf("Operator: %s\n", yytext); operators++; return EQ; }
-"!="            { printf("Operator: %s\n", yytext); operators++; return NEQ; }
-"="             { printf("Operator: %s\n", yytext); operators++; return ASSIGN; }
-"+"             { printf("Operator: %s\n", yytext); operators++; return PLUS; }
-"-"             { printf("Operator: %s\n", yytext); operators++; return MINUS; }
-"*"             { printf("Operator: %s\n", yytext); operators++; return MULT; }
-"/"             { printf("Operator: %s\n", yytext); operators++; return DIV; }
-"<"             { printf("Operator: %s\n", yytext); operators++; return LT; }
-">"             { printf("Operator: %s\n", yytext); operators++; return GT; }
-
-"int"           { yylval.str = strdup(yytext); return INT; }
-"float"         { yylval.str = strdup(yytext); return FLOAT; }
-"char"          { yylval.str = strdup(yytext); return CHAR; }
-
-{DIGIT}         { yylval.str = strdup(yytext); numbers++; return NUM; }
-
-{ID}            {
-                  if (is_keyword(yytext)) {
-                      keywords++;
-                      yylval.str = strdup(yytext);
-                      return KEYWORD;
-                  } else {
-                      identifiers++;
-                      yylval.str = strdup(yytext);
-                      return ID;
-                  }
-               }
-
-[{}()\[\];,]    { printf("Symbol: %s\n", yytext); others++; return yytext[0]; }
-
-.               { printf("Unknown token: %s\n", yytext); others++; return UNKNOWN; }
-
-%%
-
-// Optional main() for testing lexer standalone
-/*
-int main() {
-    yylex();
-    return 0;
+%union {
+    char* str;
 }
-*/
+
+%token <str> ID NUM STRING
+%token INT FLOAT CHAR IF ELSE FOR WHILE RETURN VOID USING NAMESPACE STD INCLUDE
+%token CIN COUT
+%token EQ NEQ ASSIGN PLUS MINUS MULT DIV LT GT
+%token CIN_OP COUT_OP
+%token PREPROCESSOR
+
+%type <str> expression expression_list statement statements
+
+%start program
+
+%%
+
+program:
+    statements
+;
+
+statements:
+    statements statement
+    | statement
+;
+
+statement:
+    declaration
+    | assignment
+    | input_stmt
+    | output_stmt
+    | if_stmt
+    | while_stmt
+    | for_stmt
+    | RETURN expression ';'       { printf("return %s\n", $2); }
+    | ';'                         { /* skip empty */ }
+;
+
+declaration:
+    INT ID ';'                    { printf("%s = 0\n", $2); }
+    | FLOAT ID ';'                { printf("%s = 0.0\n", $2); }
+    | CHAR ID ';'                 { printf("%s = ''\n", $2); }
+;
+
+assignment:
+    ID ASSIGN expression ';'      { printf("%s = %s\n", $1, $3); }
+;
+
+expression:
+    ID                            { $$ = $1; }
+    | NUM                         { $$ = $1; }
+    | STRING                      { $$ = $1; }
+    | expression PLUS expression  {
+                                    char* temp = str_concat($1, "+");
+                                    $$ = str_concat(temp, $3);
+                                  }
+    | expression MINUS expression {
+                                    char* temp = str_concat($1, "-");
+                                    $$ = str_concat(temp, $3);
+                                  }
+    | expression MULT expression  {
+                                    char* temp = str_concat($1, "*");
+                                    $$ = str_concat(temp, $3);
+                                  }
+    | expression DIV expression   {
+                                    char* temp = str_concat($1, "/");
+                                    $$ = str_concat(temp, $3);
+                                  }
+;
+
+input_stmt:
+    CIN CIN_OP ID ';'            { printf("%s = input()\n", $3); }
+;
+
+output_stmt:
+    COUT COUT_OP expression_list ';' {
+        printf("print(%s)\n", $3);
+    }
+;
+
+expression_list:
+    expression                    { $$ = $1; }
+    | expression_list COUT_OP expression {
+        char* temp = str_concat($1, ",");
+        $$ = str_concat(temp, $3);
+    }
+;
+
+if_stmt:
+    IF '(' expression ')' '{' statements '}' {
+        printf("if %s:\n", $3);
+    }
+;
+
+while_stmt:
+    WHILE '(' expression ')' '{' statements '}' {
+        printf("while %s:\n", $3);
+    }
+;
+
+for_stmt:
+    FOR '(' assignment expression ';' assignment ')' '{' statements '}' {
+        // Very simplified for loop handling
+        printf("# for loop not fully supported yet\n");
+    }
+;
+
+%%
+
+void yyerror(const char *s) {
+    fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
+}
