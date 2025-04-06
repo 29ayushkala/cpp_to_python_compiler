@@ -18,7 +18,7 @@ int symbolCount = 0;
 char currentType[10];
 char currentID[100];
 
-FILE *pyout; // Python output file
+FILE *pyout;
 
 int isDeclared(char *name) {
     for (int i = 0; i < symbolCount; i++) {
@@ -43,8 +43,7 @@ void addSymbol(char *name, char *type) {
         strcpy(symbolTable[symbolCount].name, name);
         strcpy(symbolTable[symbolCount].type, type);
         symbolCount++;
-
-        fprintf(pyout, "%s = None\n", name);  // Write to Python file
+        fprintf(pyout, "%s = None\n", name);
         printf("✔ Declared: %s (%s)\n", name, type);
     }
 }
@@ -57,7 +56,7 @@ void checkAssignment(char *name, char *expectedType, char *value) {
         if (strcmp(actualType, expectedType) != 0) {
             printf("❌ Error: Type mismatch in assignment to '%s'\n", name);
         } else {
-            fprintf(pyout, "%s = %s\n", name, value); // Write assignment to Python
+            fprintf(pyout, "%s = %s\n", name, value);
             printf("✔ Assignment OK: %s = %s\n", name, value);
         }
     }
@@ -68,9 +67,10 @@ void checkAssignment(char *name, char *expectedType, char *value) {
     char *str;
 }
 
-%token <str> INT FLOAT CHAR ID NUM ASSIGN SEMI
-%token <str> CIN COUT CIN_OP COUT_OP STRING
-%type <str> type
+%token <str> INT FLOAT CHAR ID NUM STRING
+%token IF ELSE WHILE FOR CIN COUT COUT_OP CIN_OP
+%token ASSIGN PLUS MINUS MULT DIV SEMI LT GT EQ NEQ
+%type <str> type expr
 
 %%
 
@@ -82,8 +82,11 @@ program:
 stmt:
     declaration SEMI
     | assignment SEMI
-    | cin_stmt SEMI
-    | cout_stmt SEMI
+    | output SEMI
+    | input SEMI
+    | if_stmt
+    | while_stmt
+    | for_stmt
     ;
 
 declaration:
@@ -94,42 +97,98 @@ declaration:
     ;
 
 assignment:
-    ID ASSIGN NUM {
-        checkAssignment($1, "int", $3);
+    ID ASSIGN expr {
+        checkAssignment($1, getType($1), $3);
     }
     ;
 
-cin_stmt:
-    CIN CIN_OP ID {
-        if (!isDeclared($3)) {
-            printf("❌ Error: Variable '%s' not declared\n", $3);
+expr:
+    ID       { $$ = $1; }
+    | NUM    { $$ = $1; }
+    | expr PLUS expr {
+        char *res = malloc(100);
+        sprintf(res, "%s + %s", $1, $3); $$ = res;
+    }
+    | expr MINUS expr {
+        char *res = malloc(100);
+        sprintf(res, "%s - %s", $1, $3); $$ = res;
+    }
+    | expr MULT expr {
+        char *res = malloc(100);
+        sprintf(res, "%s * %s", $1, $3); $$ = res;
+    }
+    | expr DIV expr {
+        char *res = malloc(100);
+        sprintf(res, "%s / %s", $1, $3); $$ = res;
+    }
+    ;
+
+output:
+    COUT output_chain {
+        fprintf(pyout, "print(%s)\n", $2);
+    }
+    ;
+
+output_chain:
+    STRING           { $$ = $1; }
+    | ID             { $$ = $1; }
+    | output_chain COUT_OP STRING {
+        char *res = malloc(200);
+        sprintf(res, "%s + %s", $1, $3); $$ = res;
+    }
+    | output_chain COUT_OP ID {
+        char *res = malloc(200);
+        sprintf(res, "%s + str(%s)", $1, $3); $$ = res;
+    }
+    ;
+
+input:
+    CIN input_chain
+    ;
+
+input_chain:
+    CIN_OP ID {
+        if (!isDeclared($2)) {
+            printf("❌ Error: '%s' not declared\n", $2);
         } else {
-            char *type = getType($3);
-            if (strcmp(type, "int") == 0) {
-                fprintf(pyout, "%s = int(input())\n", $3);
-            } else if (strcmp(type, "float") == 0) {
-                fprintf(pyout, "%s = float(input())\n", $3);
-            } else {
-                fprintf(pyout, "%s = input()\n", $3);
-            }
-            printf("✔ Input accepted for: %s\n", $3);
+            fprintf(pyout, "%s = input()\n", $2);
+        }
+    }
+    | input_chain CIN_OP ID {
+        if (!isDeclared($3)) {
+            printf("❌ Error: '%s' not declared\n", $3);
+        } else {
+            fprintf(pyout, "%s = input()\n", $3);
         }
     }
     ;
 
-cout_stmt:
-    COUT COUT_OP ID {
-        if (!isDeclared($3)) {
-            printf("❌ Error: Variable '%s' not declared\n", $3);
-        } else {
-            fprintf(pyout, "print(%s)\n", $3);
-            printf("✔ Output: %s\n", $3);
-        }
+if_stmt:
+    IF '(' ID relop NUM ')' '{' program '}'
+    {
+        fprintf(pyout, "if %s %s %s:\n", $3, $4, $5);
     }
-    | COUT COUT_OP STRING {
-        fprintf(pyout, "print(%s)\n", $3);
-        printf("✔ Output: %s\n", $3);
+    ;
+
+while_stmt:
+    WHILE '(' ID relop NUM ')' '{' program '}'
+    {
+        fprintf(pyout, "while %s %s %s:\n", $3, $4, $5);
     }
+    ;
+
+for_stmt:
+    FOR '(' assignment SEMI ID relop NUM SEMI assignment ')' '{' program '}'
+    {
+        fprintf(pyout, "for i in range(%s, %s):\n", $3, $7);
+    }
+    ;
+
+relop:
+    LT   { $$ = "<"; }
+    | GT   { $$ = ">"; }
+    | EQ   { $$ = "=="; }
+    | NEQ  { $$ = "!="; }
     ;
 
 type:
