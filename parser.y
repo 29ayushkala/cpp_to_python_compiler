@@ -1,7 +1,7 @@
 %{
 #include <stdio.h>
 #include <string.h>
-#include "y.tab.h"
+#include "y.tab.h" // Token definitions from Bison
 
 int keywords = 0, identifiers = 0, numbers = 0, operators = 0, others = 0;
 
@@ -27,8 +27,8 @@ COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
 
 %%
 
-{WS}            { /* skip */ }
-{COMMENT}       { /* skip */ }
+{WS}            { /* skip whitespace */ }
+{COMMENT}       { /* skip comment */ }
 
 "#".*           { printf("Preprocessor Directive: %s\n", yytext); others++; return PREPROCESSOR; }
 \".*\"          { yylval.str = strdup(yytext); printf("String Literal: %s\n", yytext); others++; return STRING; }
@@ -71,3 +71,11 @@ COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
 .               { printf("Unknown token: %s\n", yytext); others++; return UNKNOWN; }
 
 %%
+
+// Optional main() for testing lexer standalone
+/*
+int main() {
+    yylex();
+    return 0;
+}
+*/
