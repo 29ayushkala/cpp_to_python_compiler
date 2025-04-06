@@ -5,27 +5,12 @@
 
 // Token counters
 int keywords = 0, identifiers = 0, numbers = 0, operators = 0, others = 0;
-
-// Keywords list
-char *keyword_list[] = {
-  "int", "float", "if", "else", "for", "while", "return", "include", "using", "namespace", "std", "cout", "cin", "void", NULL
-};
-
-// Check if word is a keyword
-int is_keyword(char *str) {
-    for (int i = 0; keyword_list[i] != NULL; i++) {
-        if (strcmp(str, keyword_list[i]) == 0)
-            return 1;
-    }
-    return 0;
-}
 %}
 
 %option noyywrap
 
 DIGIT      [0-9]+
 ID         [a-zA-Z_][a-zA-Z0-9_]*
-OP         [+\-*/=<>!]+
 WS         [ \t\n]+
 COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
 
@@ -35,46 +20,59 @@ COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
 {WS}            { /* skip */ }
 {COMMENT}       { /* skip */ }
 
+// Preprocessor and strings
 "#".*           { printf("Preprocessor Directive: %s\n", yytext); others++; return PREPROCESSOR; }
 \".*\"          { printf("String Literal: %s\n", yytext); others++; return STRING; }
 
 // C++ specific keywords & streams
+"int"           { printf("Keyword: %s\n", yytext); keywords++; return INT; }
+"float"         { printf("Keyword: %s\n", yytext); keywords++; return FLOAT; }
+"char"          { printf("Keyword: %s\n", yytext); keywords++; return CHAR; }
+"if"            { printf("Keyword: %s\n", yytext); keywords++; return IF; }
+"else"          { printf("Keyword: %s\n", yytext); keywords++; return ELSE; }
+"while"         { printf("Keyword: %s\n", yytext); keywords++; return WHILE; }
+"for"           { printf("Keyword: %s\n", yytext); keywords++; return FOR; }
+"return"        { printf("Keyword: %s\n", yytext); keywords++; return RETURN; }
+"include"       { printf("Keyword: %s\n", yytext); keywords++; return INCLUDE; }
+"using"         { printf("Keyword: %s\n", yytext); keywords++; return USING; }
+"namespace"     { printf("Keyword: %s\n", yytext); keywords++; return NAMESPACE; }
+"std"           { printf("Keyword: %s\n", yytext); keywords++; return STD; }
 "cin"           { printf("Keyword: %s\n", yytext); keywords++; return CIN; }
 "cout"          { printf("Keyword: %s\n", yytext); keywords++; return COUT; }
-">>"            { printf("CIN Operator: %s\n", yytext); operators++; return CIN_OP; }
+"void"          { printf("Keyword: %s\n", yytext); keywords++; return VOID; }
+
+// C++ I/O operators
 "<<"            { printf("COUT Operator: %s\n", yytext); operators++; return COUT_OP; }
+">>"            { printf("CIN Operator: %s\n", yytext); operators++; return CIN_OP; }
 
 // Numbers
-{DIGIT}         { printf("Number: %s\n", yytext); numbers++; yylval.ival = atoi(yytext); return NUM; }
+{DIGIT}         { printf("Number: %s\n", yytext); numbers++; yylval.str = strdup(yytext); return NUM; }
 
-// Identifiers & Keywords
-{ID}            {
-                  if (is_keyword(yytext)) {
-                      printf("Keyword: %s\n", yytext); keywords++;
-                      return KEYWORD;
-                  } else {
-                      printf("Identifier: %s\n", yytext); identifiers++;
-                      yylval.str = strdup(yytext);
-                      return ID;
-                  }
-               }
+// Identifiers
+{ID}            { printf("Identifier: %s\n", yytext); identifiers++; yylval.str = strdup(yytext); return ID; }
 
-// Operators
-"=="|"="|"+"|"-"|"*"|"/"|"<"|">" {
-                  printf("Operator: %s\n", yytext);
-                  operators++;
-                  return OPERATOR;
-              }
+// Operators (match longer first)
+"=="            { printf("Operator: %s\n", yytext); operators++; return EQ; }
+"!="            { printf("Operator: %s\n", yytext); operators++; return NEQ; }
+"<="            { printf("Operator: %s\n", yytext); operators++; return LE; }
+">="            { printf("Operator: %s\n", yytext); operators++; return GE; }
+"<"             { printf("Operator: %s\n", yytext); operators++; return LT; }
+">"             { printf("Operator: %s\n", yytext); operators++; return GT; }
+"="             { printf("Operator: %s\n", yytext); operators++; return ASSIGN; }
+"+"             { printf("Operator: %s\n", yytext); operators++; return PLUS; }
+"-"             { printf("Operator: %s\n", yytext); operators++; return MINUS; }
+"*"             { printf("Operator: %s\n", yytext); operators++; return MULT; }
+"/"             { printf("Operator: %s\n", yytext); operators++; return DIV; }
 
 // Symbols
 [{}()\[\];,]    { printf("Symbol: %s\n", yytext); others++; return yytext[0]; }
 
-// Unknown token
+// Unknown
 .               { printf("Unknown token: %s\n", yytext); others++; return UNKNOWN; }
 
 %%
 
-// main() not required if using with parser.y (but for testing, you can uncomment below)
+// Optional test main
 /*
 int main() {
     printf("----- Lexical Analysis Started -----\n\n");
