@@ -119,4 +119,6 @@ int main() {
     yyparse();
     fclose(pyout);
     return 0;
+system("python3 output.py");
+
 }
