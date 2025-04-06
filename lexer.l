@@ -1,6 +1,7 @@
 %{
 #include <stdio.h>
 #include <string.h>
+#include "y.tab.h"  // for token definitions from yacc
 
 // Token counters
 int keywords = 0, identifiers = 0, numbers = 0, operators = 0, others = 0;
@@ -22,33 +23,60 @@ int is_keyword(char *str) {
 
 %option noyywrap
 
-DIGIT      [0-9]
+DIGIT      [0-9]+
 ID         [a-zA-Z_][a-zA-Z0-9_]*
 OP         [+\-*/=<>!]+
 WS         [ \t\n]+
 COMMENT    ("//".*|/\*([^*]|\*+[^*/])*\*+/)
 
 %%
-{COMMENT}       {/* Ignore comments */}
-{WS}            {/* Ignore whitespace */}
-"#".*           { printf("Preprocessor Directive: %s\n", yytext); others++; }
-\".*\"          { printf("String Literal: %s\n", yytext); others++; }
 
-{DIGIT}+        { printf("Number: %s\n", yytext); numbers++; }
+// Ignore whitespace and comments
+{WS}            { /* skip */ }
+{COMMENT}       { /* skip */ }
+
+"#".*           { printf("Preprocessor Directive: %s\n", yytext); others++; return PREPROCESSOR; }
+\".*\"          { printf("String Literal: %s\n", yytext); others++; return STRING; }
+
+// C++ specific keywords & streams
+"cin"           { printf("Keyword: %s\n", yytext); keywords++; return CIN; }
+"cout"          { printf("Keyword: %s\n", yytext); keywords++; return COUT; }
+">>"            { printf("CIN Operator: %s\n", yytext); operators++; return CIN_OP; }
+"<<"            { printf("COUT Operator: %s\n", yytext); operators++; return COUT_OP; }
+
+// Numbers
+{DIGIT}         { printf("Number: %s\n", yytext); numbers++; yylval.ival = atoi(yytext); return NUM; }
+
+// Identifiers & Keywords
 {ID}            {
                   if (is_keyword(yytext)) {
                       printf("Keyword: %s\n", yytext); keywords++;
+                      return KEYWORD;
                   } else {
                       printf("Identifier: %s\n", yytext); identifiers++;
+                      yylval.str = strdup(yytext);
+                      return ID;
                   }
                }
-{OP}            { printf("Operator: %s\n", yytext); operators++; }
-[{}()\[\];,]    { printf("Symbol: %s\n", yytext); others++; }
-.               { printf("Unknown token: %s\n", yytext); others++; }
- 
+
+// Operators
+"=="|"="|"+"|"-"|"*"|"/"|"<"|">" {
+                  printf("Operator: %s\n", yytext);
+                  operators++;
+                  return OPERATOR;
+              }
+
+// Symbols
+[{}()\[\];,]    { printf("Symbol: %s\n", yytext); others++; return yytext[0]; }
+
+// Unknown token
+.               { printf("Unknown token: %s\n", yytext); others++; return UNKNOWN; }
+
 %%
 
-int main(int argc, char **argv) {
+// main() not required if using with parser.y (but for testing, you can uncomment below)
+/*
+int main() {
     printf("----- Lexical Analysis Started -----\n\n");
     yylex();
     printf("\n----- Summary -----\n");
@@ -59,3 +87,4 @@ int main(int argc, char **argv) {
     printf("Others: %d\n", others);
     return 0;
 }
+*/
