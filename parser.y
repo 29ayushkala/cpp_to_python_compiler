@@ -68,8 +68,8 @@ void checkAssignment(char *name, char *expectedType, char *value) {
     char *str;
 }
 
-%token <str> INT FLOAT CHAR ID NUM
-%token ASSIGN SEMI
+%token <str> INT FLOAT CHAR ID NUM ASSIGN SEMI
+%token <str> CIN COUT CIN_OP COUT_OP STRING
 %type <str> type
 
 %%
@@ -82,6 +82,8 @@ program:
 stmt:
     declaration SEMI
     | assignment SEMI
+    | cin_stmt SEMI
+    | cout_stmt SEMI
     ;
 
 declaration:
@@ -94,6 +96,39 @@ declaration:
 assignment:
     ID ASSIGN NUM {
         checkAssignment($1, "int", $3);
+    }
+    ;
+
+cin_stmt:
+    CIN CIN_OP ID {
+        if (!isDeclared($3)) {
+            printf("❌ Error: Variable '%s' not declared\n", $3);
+        } else {
+            char *type = getType($3);
+            if (strcmp(type, "int") == 0) {
+                fprintf(pyout, "%s = int(input())\n", $3);
+            } else if (strcmp(type, "float") == 0) {
+                fprintf(pyout, "%s = float(input())\n", $3);
+            } else {
+                fprintf(pyout, "%s = input()\n", $3);
+            }
+            printf("✔ Input accepted for: %s\n", $3);
+        }
+    }
+    ;
+
+cout_stmt:
+    COUT COUT_OP ID {
+        if (!isDeclared($3)) {
+            printf("❌ Error: Variable '%s' not declared\n", $3);
+        } else {
+            fprintf(pyout, "print(%s)\n", $3);
+            printf("✔ Output: %s\n", $3);
+        }
+    }
+    | COUT COUT_OP STRING {
+        fprintf(pyout, "print(%s)\n", $3);
+        printf("✔ Output: %s\n", $3);
     }
     ;
 
@@ -118,9 +153,7 @@ int main() {
 
     yyparse();
     fclose(pyout);
- printf("\n🟢 Running Generated Python Code:\n");
-system("python3 output.py");
+    printf("\n🟢 Running Generated Python Code:\n");
+    system("python3 output.py");
     return 0;
-
-
 }
